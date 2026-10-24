@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const analysisSchema = z.object({
   visualObservations: z.array(z.string().max(1000)).max(20),
@@ -72,24 +73,39 @@ export async function POST(request: NextRequest) {
 }
 Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spesifikasi. userFacts harus kosong karena belum ada fakta yang diberikan pengguna. Bedakan teks promosi yang tampak di gambar dari fakta terverifikasi. Jika tidak yakin, sebutkan ketidakpastian. Jangan membuat caption dulu.`;
 
-  let aiResponse: Response;
-  try {
-    aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [
-          { text: prompt },
-          { inline_data: { mime_type: asset.mime_type, data: bytes.toString("base64") } },
-        ] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(45000),
-    });
-  } catch (error) {
-    console.error("[analysis] gemini_request_failed", { name: error instanceof Error ? error.name : "UNKNOWN", message: error instanceof Error ? error.message.slice(0, 240) : "Unknown fetch error" });
-    return NextResponse.json({ error: "Layanan Gemini tidak merespons dalam batas waktu. Coba lagi sebentar." }, { status: 504 });
+  let aiResponse: Response | undefined;
+  let lastRequestError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [
+            { text: prompt },
+            { inline_data: { mime_type: asset.mime_type, data: bytes.toString("base64") } },
+          ] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(25000),
+      });
+      if (aiResponse.status !== 503 || attempt === 2) break;
+      console.warn("[analysis] gemini_overloaded_retry", { attempt, status: aiResponse.status });
+    } catch (error) {
+      lastRequestError = error;
+      if (attempt === 2) {
+        console.error("[analysis] gemini_request_failed", { name: error instanceof Error ? error.name : "UNKNOWN", message: error instanceof Error ? error.message.slice(0, 240) : "Unknown fetch error" });
+        return NextResponse.json({ error: "Layanan Gemini tidak merespons setelah dicoba ulang. Tunggu sebentar lalu coba lagi." }, { status: 504 });
+      }
+      console.warn("[analysis] gemini_timeout_retry", { attempt, name: error instanceof Error ? error.name : "UNKNOWN" });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+
+  if (!aiResponse) {
+    console.error("[analysis] gemini_no_response", { hadRequestError: Boolean(lastRequestError) });
+    return NextResponse.json({ error: "Layanan Gemini belum merespons. Coba lagi sebentar." }, { status: 504 });
   }
 
   if (!aiResponse.ok) {
