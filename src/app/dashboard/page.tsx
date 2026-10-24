@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { isValidSessionToken, sessionCookie } from "@/lib/auth";
 import LogoutButton from "./logout-button";
+import Link from "next/link";
 import ImageWorkspace from "./image-workspace";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,10 @@ export default async function DashboardPage() {
     <main className="shell dashboard">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">✳</span><span>AI Post Assistant</span></div>
-        <LogoutButton />
+        <nav style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/dashboard/settings" className="small-button">Pengaturan</Link>
+          <LogoutButton />
+        </nav>
       </header>
       <section className="dash-head">
         <div>
