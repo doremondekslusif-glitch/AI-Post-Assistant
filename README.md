@@ -15,7 +15,7 @@ Private, single-user workspace for turning your existing images and videos into 
 1. Install Node.js 20.9+.
 2. Run `npm install`.
 3. Copy `.env.example` to `.env.local`.
-4. Set `APP_PASSWORD_HASH` to a bcrypt hash of your shared password and set `SESSION_SECRET` to a random secret of at least 32 bytes.
+4. Set `APP_PASSWORD_HASH` to a PBKDF2-SHA256 hash in the format `pbkdf2$310000$<32-hex-char-salt>$<64-hex-char-hash>`, and set `SESSION_SECRET` to a random secret of at least 32 bytes. The initial deployment password is generated separately; do not commit its plaintext.
 5. Run `npm run dev`.
 
 Never commit `.env.local`, service-role keys, or provider API keys. Do not expose `SUPABASE_SERVICE_ROLE_KEY` through a `NEXT_PUBLIC_` variable.
