@@ -13,7 +13,8 @@
     "react": "19.1.7",
     "react-dom": "19.1.7",
     "zod": "4.1.12",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "@supabase/supabase-js": "2.57.4"
   },
   "devDependencies": {
     "@types/node": "22.18.6",
