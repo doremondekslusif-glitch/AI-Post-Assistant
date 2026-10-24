@@ -5,7 +5,7 @@ import { useState } from "react";
 const PLATFORM_OPTIONS = ["Instagram", "TikTok", "Facebook", "YouTube", "LinkedIn", "X", "Pinterest", "Shopee", "Tokopedia"] as const;
 type Platform = typeof PLATFORM_OPTIONS[number];
 type Mode = "natural" | "soft_sell" | "direct_sell" | "informative" | "storytelling";
-type Output = { platform: string; caption: string; hashtags: string[]; title: string; cta: string; ideas: string[]; altText: string };
+type Output = { platform: string; caption: string; hashtags: string[]; title: string; cta: string; ideas: string[]; altText: string; ids: Record<string, string> };
 
 export default function ContentGenerator({ projectId, analysisId }: { projectId: string; analysisId: string }) {
   const [platforms, setPlatforms] = useState<Platform[]>(["Instagram"]);
@@ -37,10 +37,51 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Draf gagal dibuat.");
-      setOutputs(result.outputs || []);
-      setMessage(`Draf tersimpan sebagai draft untuk ${(result.outputs || []).length} platform. Periksa klaim sebelum dipakai.`);
+      const savedRows = Array.isArray(result.saved) ? result.saved : [];
+      setOutputs((result.outputs || []).map((item: Omit<Output, "ids">) => ({
+        ...item,
+        ids: Object.fromEntries(savedRows.filter((row: { platform: string }) => row.platform === item.platform).map((row: { output_type: string; id: string }) => [row.output_type, row.id])),
+      })));
+      setMessage(`Draf tersimpan untuk ${(result.outputs || []).length} platform. Kamu bisa mengeditnya sebelum digunakan.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Terjadi kesalahan. Coba lagi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updateOutput(platform: string, field: keyof Omit<Output, "platform" | "ids">, value: string) {
+    setOutputs((current) => current.map((item) => item.platform !== platform ? item : {
+      ...item,
+      [field]: field === "hashtags" ? value.split(/\\s+/).filter(Boolean).slice(0, 30) : field === "ideas" ? value.split("\\n").slice(0, 5) : value,
+    }));
+  }
+
+  async function saveOutput(output: Output) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const fields = [
+        ["caption", output.caption],
+        ["hashtags", output.hashtags.join(" ")],
+        ["title", output.title],
+        ["cta", output.cta],
+        ["ideas", output.ideas.join("\\n")],
+        ["alt_text", output.altText],
+      ] as const;
+      const edits = fields.map(([outputType, content]) => ({ id: output.ids[outputType], platform: output.platform, outputType, content }));
+      if (edits.some((edit) => !edit.id)) throw new Error("ID draf tidak lengkap. Buat ulang draf sebelum menyimpan.");
+      const response = await fetch("/api/content/save", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId, edits }),
+        cache: "no-store",
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Perubahan draf gagal disimpan.");
+      setMessage(result.message || "Perubahan draf berhasil disimpan.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Perubahan draf gagal disimpan.");
     } finally {
       setBusy(false);
     }
@@ -94,18 +135,18 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
             </button>
           </div>
           <label className="field-label">Judul</label>
-          <textarea className="field review-textarea" readOnly value={output.title} />
+          <textarea className="field review-textarea" value={output.title} onChange={(event) => updateOutput(output.platform, "title", event.target.value)} />
           <label className="field-label">Caption</label>
-          <textarea className="field review-textarea" readOnly value={output.caption} />
+          <textarea className="field review-textarea" value={output.caption} onChange={(event) => updateOutput(output.platform, "caption", event.target.value)} />
           <label className="field-label">Hashtag</label>
-          <textarea className="field review-textarea" readOnly value={output.hashtags.join(" ")} />
+          <textarea className="field review-textarea" value={output.hashtags.join(" ")} onChange={(event) => updateOutput(output.platform, "hashtags", event.target.value)} />
           <label className="field-label">Ajakan (CTA)</label>
-          <textarea className="field review-textarea" readOnly value={output.cta} />
+          <textarea className="field review-textarea" value={output.cta} onChange={(event) => updateOutput(output.platform, "cta", event.target.value)} />
           <label className="field-label">Ide lanjutan</label>
-          <textarea className="field review-textarea" readOnly value={output.ideas.join("\n")} />
+          <textarea className="field review-textarea" value={output.ideas.join("\n")} onChange={(event) => updateOutput(output.platform, "ideas", event.target.value)} />
           <label className="field-label">Alt text</label>
-          <textarea className="field review-textarea" readOnly value={output.altText} />
-          <p className="muted helper-text">Status: draft · Periksa lagi fakta, ejaan, dan kesesuaian platform sebelum menyalin.</p>
+          <textarea className="field review-textarea" value={output.altText} onChange={(event) => updateOutput(output.platform, "altText", event.target.value)} />
+          <button className="primary" type="button" disabled={busy} onClick={() => saveOutput(output)} style={{ marginTop: 10 }}>{busy ? "Menyimpan…" : "Simpan perubahan draf"}</button>\n          <p className="muted helper-text">Status: draft · Periksa lagi fakta, ejaan, dan kesesuaian platform sebelum menyalin.</p>
         </article>
       ))}
     </section>
