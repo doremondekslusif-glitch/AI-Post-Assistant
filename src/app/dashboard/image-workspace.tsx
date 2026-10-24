@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useState } from "react";
+import ContentGenerator from "./content-generator";
 
 type Analysis = {
   id: string;
@@ -167,6 +168,7 @@ export default function ImageWorkspace() {
           </>
         )}
       </div>
+      {analysis && uploaded && <ContentGenerator projectId={uploaded.projectId} analysisId={analysis.id} />}
     </section>
   );
 }
