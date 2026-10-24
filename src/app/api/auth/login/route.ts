@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== "object" || !("password" in body) || typeof body.password !== "string" || body.password.length > 1024) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  if (!verifyPassword(body.password)) {
+  if (!(await verifyPassword(body.password))) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
