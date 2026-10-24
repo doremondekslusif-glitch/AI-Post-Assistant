@@ -41,9 +41,12 @@ export function verifyPasswordAgainstHash(password: string, encoded: string | un
 export async function getCurrentPasswordHash(): Promise<string | undefined> {
   try {
     const { data, error } = await getSupabaseAdmin().from("app_settings").select("value").eq("key", "password_hash").maybeSingle();
-    if (!error && typeof data?.value === "string") return data.value;
-  } catch { /* Use the initial environment password during first setup. */ }
-  return process.env.APP_PASSWORD_HASH;
+    if (error) return undefined;
+    if (typeof data?.value === "string") return data.value;
+    return process.env.APP_PASSWORD_HASH;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function verifyPassword(password: string): Promise<boolean> {
