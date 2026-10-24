@@ -56,7 +56,7 @@ export async function verifyPassword(password: string): Promise<boolean> {
 export function hashPassword(password: string): string {
   const salt = randomBytes(16);
   const digest = pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, 32, "sha256");
-  return `pbkdf2${PASSWORD_ITERATIONS}${salt.toString("hex")}${digest.toString("hex")}`;
+  return ["pbkdf2", String(PASSWORD_ITERATIONS), salt.toString("hex"), digest.toString("hex")].join("$");
 }
 
 function sign(value: string): string {
