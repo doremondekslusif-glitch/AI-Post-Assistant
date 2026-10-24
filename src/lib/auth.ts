@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "apa_session";
@@ -15,8 +16,7 @@ function sessionSecret(): string {
   return secret;
 }
 
-export function verifyPassword(password: string): boolean {
-  const encoded = process.env.APP_PASSWORD_HASH;
+export function verifyPasswordAgainstHash(password: string, encoded: string | undefined): boolean {
   if (!encoded || password.length === 0 || password.length > 1024) return false;
 
   const [algorithm, iterationsText, saltHex, expectedHex, extra] = encoded.split("$");
@@ -36,6 +36,24 @@ export function verifyPassword(password: string): boolean {
   } catch {
     return false;
   }
+}
+
+export async function getCurrentPasswordHash(): Promise<string | undefined> {
+  try {
+    const { data, error } = await getSupabaseAdmin().from("app_settings").select("value").eq("key", "password_hash").maybeSingle();
+    if (!error && typeof data?.value === "string") return data.value;
+  } catch { /* Use the initial environment password during first setup. */ }
+  return process.env.APP_PASSWORD_HASH;
+}
+
+export async function verifyPassword(password: string): Promise<boolean> {
+  return verifyPasswordAgainstHash(password, await getCurrentPasswordHash());
+}
+
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const digest = pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, 32, "sha256");
+  return `pbkdf2${PASSWORD_ITERATIONS}${salt.toString("hex")}${digest.toString("hex")}`;
 }
 
 function sign(value: string): string {
