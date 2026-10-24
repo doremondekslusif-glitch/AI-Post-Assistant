@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: "Kunci Gemini belum dikonfigurasi di server." }, { status: 503 });
 
   const { data: blob, error: downloadError } = await supabase.storage.from("media-originals").download(asset.storage_path);
-  if (downloadError || !blob) return NextResponse.json({ error: "Gambar tidak dapat dibaca dari storage privat." }, { status: 502 });
+  if (downloadError || !blob) {
+    console.error("[analysis] storage_download_failed", { code: downloadError?.name || "STORAGE_DOWNLOAD_ERROR", message: downloadError?.message || "Empty storage response" });
+    return NextResponse.json({ error: "Gambar tidak dapat dibaca dari storage privat. Coba upload ulang gambar tersebut." }, { status: 502 });
+  }
 
   const bytes = Buffer.from(await blob.arrayBuffer());
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -84,17 +87,25 @@ Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spes
       cache: "no-store",
       signal: AbortSignal.timeout(45000),
     });
-  } catch {
-    return NextResponse.json({ error: "Layanan AI tidak merespons. Coba lagi sebentar." }, { status: 504 });
+  } catch (error) {
+    console.error("[analysis] gemini_request_failed", { name: error instanceof Error ? error.name : "UNKNOWN", message: error instanceof Error ? error.message.slice(0, 240) : "Unknown fetch error" });
+    return NextResponse.json({ error: "Layanan Gemini tidak merespons dalam batas waktu. Coba lagi sebentar." }, { status: 504 });
   }
 
   if (!aiResponse.ok) {
     const status = aiResponse.status;
+    let providerMessage = "";
+    try {
+      const errorBody = await aiResponse.json();
+      providerMessage = typeof errorBody?.error?.message === "string" ? errorBody.error.message.slice(0, 240) : "";
+    } catch { /* The provider may return a non-JSON error body. */ }
+    console.error("[analysis] gemini_http_error", { status, message: providerMessage || "No provider message" });
+    const detail = providerMessage ? ` Detail: ${providerMessage}` : "";
     return NextResponse.json({
       error: status === 429 ? "Kuota Gemini sedang habis atau dibatasi. Coba lagi nanti." :
-        status === 400 ? "Model atau format gambar ditolak oleh Gemini. Periksa konfigurasi model." :
-        status === 401 || status === 403 ? "Kunci Gemini tidak valid atau tidak memiliki akses." :
-        "Analisis AI gagal. Coba lagi nanti.",
+        status === 400 ? `Gemini menolak permintaan (HTTP 400). Periksa format/model gambar.${detail}` :
+        status === 401 || status === 403 ? `Kunci Gemini tidak valid atau belum memiliki akses.${detail}` :
+        `Gemini gagal memproses gambar (HTTP ${status}).${detail}`,
     }, { status: status === 429 ? 429 : 502 });
   }
 
@@ -102,16 +113,24 @@ Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spes
   try {
     const responseBody = await aiResponse.json();
     rawText = responseBody.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || "").join("") || "";
+    if (!rawText) {
+      console.error("[analysis] gemini_empty_response", { finishReason: responseBody.candidates?.[0]?.finishReason || "NO_CANDIDATE", promptFeedback: responseBody.promptFeedback?.blockReason || null });
+      return NextResponse.json({ error: "Gemini tidak menghasilkan teks analisis. Coba gambar lain atau ulangi beberapa saat lagi." }, { status: 502 });
+    }
   } catch {
     return NextResponse.json({ error: "Jawaban AI tidak bisa dibaca." }, { status: 502 });
   }
 
   let parsed: unknown;
   try { parsed = JSON.parse(rawText); } catch {
-    return NextResponse.json({ error: "Jawaban AI tidak berbentuk JSON yang valid." }, { status: 502 });
+    console.error("[analysis] gemini_invalid_json", { responseLength: rawText.length, responseStart: rawText.slice(0, 120) });
+    return NextResponse.json({ error: "Gemini mengirim jawaban dengan format yang tidak sesuai. Coba analisis ulang." }, { status: 502 });
   }
   const validated = analysisSchema.safeParse(parsed);
-  if (!validated.success) return NextResponse.json({ error: "Struktur jawaban AI tidak sesuai. Coba analisis ulang." }, { status: 502 });
+  if (!validated.success) {
+    console.error("[analysis] gemini_schema_validation_failed", { issues: validated.error.issues.slice(0, 8).map((issue) => ({ path: issue.path.join("."), code: issue.code })) });
+    return NextResponse.json({ error: "Struktur jawaban Gemini tidak sesuai format yang diperlukan. Coba analisis ulang." }, { status: 502 });
+  }
 
   const { data: analysis, error: insertError } = await supabase.from("analyses").insert({
     project_id: asset.project_id,
@@ -126,7 +145,10 @@ Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spes
     corrected_analysis: null,
   }).select("id, visual_observations, extracted_text, user_facts, unverified_claims, created_at").single();
 
-  if (insertError || !analysis) return NextResponse.json({ error: "Analisis selesai tetapi gagal disimpan." }, { status: 502 });
+  if (insertError || !analysis) {
+    console.error("[analysis] database_insert_failed", { code: insertError?.code || "NO_ROW_RETURNED", message: insertError?.message || "Analysis insert returned no row" });
+    return NextResponse.json({ error: `Analisis AI selesai, tetapi penyimpanan hasil gagal${insertError?.code ? ` (kode ${insertError.code})` : ""}. Coba lagi.` }, { status: 502 });
+  }
 
   return NextResponse.json({
     analysis: {
