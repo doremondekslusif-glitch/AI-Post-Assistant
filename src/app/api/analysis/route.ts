@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   }
 
   const bytes = Buffer.from(await blob.arrayBuffer());
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const prompt = `Analisis gambar ini untuk membantu menyiapkan konten media sosial. Balas hanya JSON valid dengan struktur:
 {
  "visualObservations": ["hal visual yang benar-benar terlihat"],
