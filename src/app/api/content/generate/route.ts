@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return errorResponse("Kunci Gemini belum dikonfigurasi di server.", 503);
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const modeInstructions: Record<string, string> = {
     natural: "gaya natural, jelas, tidak berlebihan",
     soft_sell: "soft selling, mengajak secara halus tanpa tekanan",
