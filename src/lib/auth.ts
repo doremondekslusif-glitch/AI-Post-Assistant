@@ -1,10 +1,11 @@
 import "server-only";
 
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "apa_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
+const PASSWORD_ITERATIONS = 310_000;
 
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -18,13 +19,18 @@ export function verifyPassword(password: string): boolean {
   const encoded = process.env.APP_PASSWORD_HASH;
   if (!encoded || password.length === 0 || password.length > 1024) return false;
 
-  const [salt, expectedHex, extra] = encoded.split(":");
-  if (!salt || !expectedHex || extra !== undefined || !/^[a-f0-9]{32,128}$/i.test(salt) || !/^[a-f0-9]{128}$/i.test(expectedHex)) {
-    return false;
-  }
+  const [algorithm, iterationsText, saltHex, expectedHex, extra] = encoded.split("$");
+  const iterations = Number(iterationsText);
+  if (
+    algorithm !== "pbkdf2" ||
+    iterations !== PASSWORD_ITERATIONS ||
+    !saltHex || !/^[a-f0-9]{32}$/i.test(saltHex) ||
+    !expectedHex || !/^[a-f0-9]{64}$/i.test(expectedHex) ||
+    extra !== undefined
+  ) return false;
 
   try {
-    const actual = scryptSync(password, salt, 64);
+    const actual = pbkdf2Sync(password, Buffer.from(saltHex, "hex"), iterations, 32, "sha256");
     const expected = Buffer.from(expectedHex, "hex");
     return expected.length === actual.length && timingSafeEqual(actual, expected);
   } catch {
