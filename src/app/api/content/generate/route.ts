@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const requestSchema = z.object({
   projectId: z.string().uuid(),
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return errorResponse("Kunci Gemini belum dikonfigurasi di server.", 503);
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const modeInstructions: Record<string, string> = {
     natural: "gaya natural, jelas, tidak berlebihan",
     soft_sell: "soft selling, mengajak secara halus tanpa tekanan",
@@ -88,21 +89,43 @@ Aturan wajib:
 {"outputs":[{"platform":"nama platform persis","caption":"...","hashtags":["#..."],"title":"...","cta":"...","ideas":["..."],"altText":"..."}]}
 Buat tepat satu objek per platform yang diminta dan pertahankan nama platform persis.`;
 
-  let response: Response;
-  try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.45 },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(60000),
-    });
-  } catch (error) {
-    console.error("[content] provider_request_failed", { name: error instanceof Error ? error.name : "UNKNOWN" });
-    return errorResponse("Gemini tidak merespons dalam batas waktu. Coba lagi sebentar.", 504);
+  const modelCandidates = [...new Set([configuredModel, "gemini-3.1-flash-lite", "gemini-3.6-flash"])];
+  let response: Response | undefined;
+  let lastRequestError: unknown;
+  for (let index = 0; index < modelCandidates.length; index++) {
+    const model = modelCandidates[index];
+    try {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.45,
+            thinkingConfig: { thinkingLevel: model === "gemini-3.8-flash" ? "low" : "minimal" },
+          },
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (response.ok) break;
+      if (![429, 503].includes(response.status) || index === modelCandidates.length - 1) break;
+      console.warn("[content] fallback_model", { failedModel: model, status: response.status, nextModel: modelCandidates[index + 1] });
+      response = undefined;
+    } catch (error) {
+      lastRequestError = error;
+      console.warn("[content] model_request_failed", { model, name: error instanceof Error ? error.name : "UNKNOWN" });
+      response = undefined;
+      if (index === modelCandidates.length - 1) {
+        console.error("[content] provider_request_failed", { name: error instanceof Error ? error.name : "UNKNOWN" });
+        return errorResponse("Layanan AI utama dan cadangan tidak merespons. Coba lagi beberapa saat.", 504);
+      }
+    }
+  }
+  if (!response) {
+    console.error("[content] provider_no_response", { hadRequestError: Boolean(lastRequestError) });
+    return errorResponse("Layanan AI belum merespons. Coba lagi sebentar.", 504);
   }
   if (!response.ok) {
     const status = response.status;
