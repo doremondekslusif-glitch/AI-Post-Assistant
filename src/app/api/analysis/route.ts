@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 }
 Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spesifikasi. userFacts harus kosong karena belum ada fakta yang diberikan pengguna. Bedakan teks promosi yang tampak di gambar dari fakta terverifikasi. Jika tidak yakin, sebutkan ketidakpastian. Jangan membuat caption dulu.`;
 
-  const modelCandidates = [configuredModel, ...(configuredModel !== "gemini-3.6-flash" ? ["gemini-3.6-flash"] : [])];
+  const modelCandidates = [...new Set([configuredModel, "gemini-3.1-flash-lite", "gemini-3.6-flash"])];
   let model = configuredModel;
   let aiResponse: Response | undefined;
   let lastRequestError: unknown;
@@ -88,10 +88,10 @@ Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spes
             { text: prompt },
             { inline_data: { mime_type: asset.mime_type, data: bytes.toString("base64") } },
           ] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+          generationConfig: { responseMimeType: "application/json", thinkingConfig: { thinkingLevel: model === "gemini-3.8-flash" ? "low" : "minimal" } },
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(22000),
+        signal: AbortSignal.timeout(15000),
       });
       if (aiResponse.ok) break;
       if (![429, 503].includes(aiResponse.status) || index === modelCandidates.length - 1) break;
