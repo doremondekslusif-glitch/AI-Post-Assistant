@@ -82,8 +82,14 @@ Aturan wajib:
 - "unverifiedClaims" adalah klaim belum terverifikasi: jangan nyatakan sebagai fakta. Jika klaim itu penting, hilangkan atau tulis dengan jelas sebagai teks yang terlihat di materi, bukan fakta.
 - Gunakan hanya pengamatan visual, teks yang terbaca, dan userFacts sebagai dasar faktual. Brief pengguna boleh mengarahkan nada, tetapi bukan bukti untuk fakta yang tidak disebut.
 - Jika fakta produk tidak cukup, tulis copy netral yang tidak menambah klaim.
-- Buat tiap platform berbeda sewajarnya; jangan menjanjikan jangkauan/engagement.
-- Hashtag harus relevan dan tidak mengandung klaim yang tidak didukung.
+- Buat tiap platform berbeda sewajarnya; sesuaikan format, panjang, hook, CTA, dan niat audiens dengan platformnya.
+- Jangan memilih hashtag hanya dari kata yang tertulis di gambar atau menggabungkan kata benda yang kebetulan muncul (misalnya nama kota + jenis barang). Tentukan dulu kategori produk yang benar-benar didukung visual, kemungkinan audiens, tujuan konten, konteks penggunaan, dan format posting; baru pilih hashtag yang membantu calon audiens relevan menemukan konten.
+- Hashtag harus spesifik, relevan, dan beragam: gabungkan kata kunci kategori/niche, kebutuhan atau use-case yang masuk akal dari visual, komunitas/niat beli yang relevan, serta brand hanya jika nama brand benar-benar diketahui. Hindari tag generik berlebihan, tag tidak relevan, pengulangan, dan klaim yang tidak didukung.
+- Jumlah hashtag sesuai platform: Instagram dan TikTok maksimal 5; LinkedIn dan X 1–3; platform lain gunakan seperlunya dan utamakan kata kunci yang benar-benar relevan.
+- Tren berubah cepat. Jangan mengaku sebuah hashtag sedang trending saat ini jika tidak ada data tren terkini yang terverifikasi di sumber input. Jika data tren langsung tidak tersedia, buat pilihan berbasis relevansi pencarian/niche dan tandai ide tren sebagai kandidat untuk diverifikasi manual, bukan fakta tren.
+- Caption harus punya hook yang spesifik, manfaat/ide konten yang dapat disimpulkan secara wajar dari visual tanpa mengarang spesifikasi, lalu CTA yang natural untuk platform tersebut. Jangan cuma mengulang judul atau menumpuk kata kunci.
+- Ide lanjutan harus berupa konsep konten yang bisa diproduksi (misalnya demo penggunaan jika memang terlihat/masuk akal, detail visual, perbandingan yang dapat dibuktikan, atau pertanyaan audiens), bukan ide generik.
+- Alt text mendeskripsikan objek dan detail visual yang benar-benar terlihat, bukan copy promosi atau daftar keyword.
 - Tidak ada auto-publish. Hanya draf untuk ditinjau pengguna.
 - Balas hanya JSON valid dengan struktur:
 {"outputs":[{"platform":"nama platform persis","caption":"...","hashtags":["#..."],"title":"...","cta":"...","ideas":["..."],"altText":"..."}]}
