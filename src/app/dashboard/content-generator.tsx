@@ -53,7 +53,7 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
   function updateOutput(platform: string, field: keyof Omit<Output, "platform" | "ids">, value: string) {
     setOutputs((current) => current.map((item) => item.platform !== platform ? item : {
       ...item,
-      [field]: field === "hashtags" ? value.split(/\\s+/).filter(Boolean).slice(0, 30) : field === "ideas" ? value.split("\\n").slice(0, 5) : value,
+      [field]: field === "hashtags" ? value.split(/\s+/).filter(Boolean).slice(0, 5) : field === "ideas" ? value.split("\n").slice(0, 5) : value,
     }));
   }
 
@@ -66,7 +66,7 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
         ["hashtags", output.hashtags.join(" ")],
         ["title", output.title],
         ["cta", output.cta],
-        ["ideas", output.ideas.join("\\n")],
+        ["ideas", output.ideas.join("\n")],
         ["alt_text", output.altText],
       ] as const;
       const edits = fields.map(([outputType, content]) => ({ id: output.ids[outputType], platform: output.platform, outputType, content }));
@@ -146,7 +146,8 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
           <textarea className="field review-textarea" value={output.ideas.join("\n")} onChange={(event) => updateOutput(output.platform, "ideas", event.target.value)} />
           <label className="field-label">Alt text</label>
           <textarea className="field review-textarea" value={output.altText} onChange={(event) => updateOutput(output.platform, "altText", event.target.value)} />
-          <button className="primary" type="button" disabled={busy} onClick={() => saveOutput(output)} style={{ marginTop: 10 }}>{busy ? "Menyimpan…" : "Simpan perubahan draf"}</button>\n          <p className="muted helper-text">Status: draft · Periksa lagi fakta, ejaan, dan kesesuaian platform sebelum menyalin.</p>
+          <button className="primary" type="button" disabled={busy} onClick={() => saveOutput(output)} style={{ marginTop: 10 }}>{busy ? "Menyimpan…" : "Simpan perubahan draf"}</button>
+          <p className="muted helper-text">Status: draft · Periksa lagi fakta, ejaan, dan kesesuaian platform sebelum menyalin.</p>
         </article>
       ))}
     </section>
