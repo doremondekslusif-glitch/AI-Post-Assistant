@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
 
   const bytes = Buffer.from(await blob.arrayBuffer());
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const prompt = `Analisis gambar ini untuk membantu menyiapkan konten media sosial. Balas hanya JSON valid dengan struktur:
 {
  "visualObservations": ["hal visual yang benar-benar terlihat"],
@@ -73,9 +73,12 @@ export async function POST(request: NextRequest) {
 }
 Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spesifikasi. userFacts harus kosong karena belum ada fakta yang diberikan pengguna. Bedakan teks promosi yang tampak di gambar dari fakta terverifikasi. Jika tidak yakin, sebutkan ketidakpastian. Jangan membuat caption dulu.`;
 
+  const modelCandidates = [configuredModel, ...(configuredModel !== "gemini-3.6-flash" ? ["gemini-3.6-flash"] : [])];
+  let model = configuredModel;
   let aiResponse: Response | undefined;
   let lastRequestError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let index = 0; index < modelCandidates.length; index++) {
+    model = modelCandidates[index];
     try {
       aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
         method: "POST",
@@ -88,19 +91,21 @@ Aturan: jangan mengarang harga, diskon, merek, bahan, ukuran, manfaat, atau spes
           generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(22000),
       });
-      if (aiResponse.status !== 503 || attempt === 2) break;
-      console.warn("[analysis] gemini_overloaded_retry", { attempt, status: aiResponse.status });
+      if (aiResponse.ok) break;
+      if (![429, 503].includes(aiResponse.status) || index === modelCandidates.length - 1) break;
+      console.warn("[analysis] gemini_fallback_model", { failedModel: model, status: aiResponse.status, nextModel: modelCandidates[index + 1] });
+      aiResponse = undefined;
     } catch (error) {
       lastRequestError = error;
-      if (attempt === 2) {
+      console.warn("[analysis] gemini_model_request_failed", { model, name: error instanceof Error ? error.name : "UNKNOWN" });
+      if (index === modelCandidates.length - 1) {
         console.error("[analysis] gemini_request_failed", { name: error instanceof Error ? error.name : "UNKNOWN", message: error instanceof Error ? error.message.slice(0, 240) : "Unknown fetch error" });
-        return NextResponse.json({ error: "Layanan Gemini tidak merespons setelah dicoba ulang. Tunggu sebentar lalu coba lagi." }, { status: 504 });
+        return NextResponse.json({ error: "Layanan AI utama dan cadangan sama-sama tidak merespons. Coba lagi beberapa saat." }, { status: 504 });
       }
-      console.warn("[analysis] gemini_timeout_retry", { attempt, name: error instanceof Error ? error.name : "UNKNOWN" });
+      aiResponse = undefined;
     }
-    await new Promise((resolve) => setTimeout(resolve, 1200));
   }
 
   if (!aiResponse) {
