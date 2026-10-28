@@ -127,7 +127,7 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
       </button>
       {message && <p className={message.toLowerCase().includes("gagal") || message.toLowerCase().includes("tidak tersedia") || message.toLowerCase().includes("pilih") ? "error" : "success-text"} role="status">{message}</p>}
       {outputs.map((output) => (
-        <article key={output.platform} className="notice" style={{ marginTop: 18, padding: 16 }}>
+        <article key={output.platform} className="notice content-result-card" style={{ display: "block", width: "100%", minWidth: 0, color: "var(--text)", marginTop: 18, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <h3 style={{ margin: 0, fontSize: 19 }}>{output.platform}</h3>
             <button className="small-button" type="button" onClick={() => copy(output.platform, [output.title, output.caption, output.hashtags.join(" "), output.cta].filter(Boolean).join("\n\n"))}>
@@ -139,7 +139,7 @@ export default function ContentGenerator({ projectId, analysisId }: { projectId:
           <label className="field-label">Caption</label>
           <textarea className="field review-textarea" value={output.caption} onChange={(event) => updateOutput(output.platform, "caption", event.target.value)} />
           <label className="field-label">Hashtag</label>
-          <textarea className="field review-textarea" value={output.hashtags.join(" ")} onChange={(event) => updateOutput(output.platform, "hashtags", event.target.value)} />
+          <textarea className="field review-textarea" aria-label={`${output.platform} hashtag`} value={output.hashtags.join(" ")} onChange={(event) => updateOutput(output.platform, "hashtags", event.target.value)} />
           <label className="field-label">Ajakan (CTA)</label>
           <textarea className="field review-textarea" value={output.cta} onChange={(event) => updateOutput(output.platform, "cta", event.target.value)} />
           <label className="field-label">Ide lanjutan</label>
