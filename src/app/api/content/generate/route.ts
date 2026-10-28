@@ -70,9 +70,29 @@ export async function POST(request: NextRequest) {
     storytelling: "storytelling singkat, hanya berdasarkan fakta yang tersedia",
   };
 
+  let currentTrendContext = "Data tren real-time tidak tersedia; jangan mengklaim hashtag sedang trending.";
+  try {
+    const trendResponse = await fetch("https://trends.google.com/trending/rss?geo=ID", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500),
+      headers: { "user-agent": "AI-Post-Assistant/1.0" },
+    });
+    if (trendResponse.ok) {
+      const xml = await trendResponse.text();
+      const trendTitles = [...xml.matchAll(/<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/g)]
+        .map((match) => (match[1] || match[2] || "").trim())
+        .filter((title) => title && !/^(daily search trends|trending now)$/i.test(title))
+        .slice(0, 20);
+      if (trendTitles.length) currentTrendContext = trendTitles.join(", ");
+    }
+  } catch {
+    // Trend lookup is best-effort; generation must continue if the trend feed is unavailable.
+  }
+
   const prompt = `Buat draf konten media sosial dalam Bahasa Indonesia untuk platform berikut: ${input.data.platforms.join(", ")}.
 Gaya: ${modeInstructions[input.data.mode]}.
 Brief tambahan dari pengguna: ${input.data.brief || "(tidak ada)"}.
+Konteks pencarian populer Indonesia terbaru (gunakan hanya bila benar-benar relevan dengan produk, audiens, dan format; jangan memaksakan tren yang tidak nyambung): ${currentTrendContext}.
 
 SUMBER YANG BOLEH DIGUNAKAN (data hasil analisis gambar yang telah diperiksa pengguna):
 ${JSON.stringify(base)}
